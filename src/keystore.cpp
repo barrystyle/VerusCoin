@@ -466,7 +466,7 @@ bool CBasicKeyStore::AddSaplingSpendingKey(
     auto extfvk = sk.ToXFVK();
 
     // if SaplingFullViewingKey is not in SaplingFullViewingKeyMap, add it
-    if (!AddSaplingFullViewingKey(extfvk)) {
+    if (!CBasicKeyStore::AddSaplingExtendedFullViewingKey(extfvk)) {
         return false;
     }
 
@@ -484,7 +484,7 @@ bool CBasicKeyStore::AddSproutViewingKey(const libzcash::SproutViewingKey &vk)
     return true;
 }
 
-bool CBasicKeyStore::AddSaplingFullViewingKey(
+bool CBasicKeyStore::AddSaplingExtendedFullViewingKey(
     const libzcash::SaplingExtendedFullViewingKey &extfvk)
 {
     LOCK(cs_SpendingKeyStore);
