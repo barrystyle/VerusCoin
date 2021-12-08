@@ -205,6 +205,55 @@ bool CWalletDB::WriteSaplingPaymentAddress(
     return Write(std::make_pair(std::string("sapzaddr"), addr), ivk, false);
 }
 
+bool CWalletDB::WriteSaplingDiversifiedAddress(
+    const libzcash::SaplingPaymentAddress &addr,
+    const libzcash::SaplingIncomingViewingKey &ivk,
+    const blob88 &path)
+{
+    nWalletDBUpdated++;
+
+    return Write(std::make_pair(std::string("sapzdivaddr"), addr), std::make_pair(ivk, path));
+}
+
+bool CWalletDB::WriteCryptedSaplingDiversifiedAddress(
+    const libzcash::SaplingPaymentAddress &addr,
+    const uint256 chash,
+    const std::vector<unsigned char> &vchCryptedSecret)
+{
+    nWalletDBUpdated++;
+
+    if (!Write(std::make_pair(std::string("csapzdivaddr"), chash), vchCryptedSecret, false)) {
+        return false;
+    }
+
+    Erase(std::make_pair(std::string("sapzdivaddr"), addr));
+    return true;
+}
+
+bool CWalletDB::WriteLastDiversifierUsed(
+    const libzcash::SaplingIncomingViewingKey &ivk,
+    const blob88 &path)
+{
+    nWalletDBUpdated++;
+
+    return Write(std::make_pair(std::string("sapzlastdiv"), ivk), path);
+}
+
+bool CWalletDB::WriteLastCryptedDiversifierUsed(
+    const uint256 chash,
+    const libzcash::SaplingIncomingViewingKey &ivk,
+    const std::vector<unsigned char> &vchCryptedSecret)
+{
+    nWalletDBUpdated++;
+
+    if (!Write(std::make_pair(std::string("csapzlastdiv"), chash), vchCryptedSecret)) {
+        return false;
+    }
+
+    Erase(std::make_pair(std::string("sapzlastdiv"), ivk));
+    return true;
+}
+
 bool CWalletDB::WriteSproutViewingKey(const libzcash::SproutViewingKey &vk)
 {
     nWalletDBUpdated++;
@@ -215,6 +264,20 @@ bool CWalletDB::EraseSproutViewingKey(const libzcash::SproutViewingKey &vk)
 {
     nWalletDBUpdated++;
     return Erase(std::make_pair(std::string("vkey"), vk));
+}
+
+bool CWalletDB::WriteSaplingExtendedFullViewingKey(
+    const libzcash::SaplingExtendedFullViewingKey &extfvk)
+{
+    nWalletDBUpdated++;
+    return Write(std::make_pair(std::string("sapextfvk"), extfvk), '1');
+}
+
+bool CWalletDB::EraseSaplingExtendedFullViewingKey(
+    const libzcash::SaplingExtendedFullViewingKey &extfvk)
+{
+    nWalletDBUpdated++;
+    return Erase(std::make_pair(std::string("sapextfvk"), extfvk));
 }
 
 bool CWalletDB::WriteCScript(const uint160& hash, const CScript& redeemScript)

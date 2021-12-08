@@ -303,14 +303,16 @@ bool CWallet::AddSaplingExtendedFullViewingKey(const libzcash::SaplingExtendedFu
     }
 }
 
-bool CWallet::AddSaplingDiversifiedAddess(
+
+
+bool CWallet::AddSaplingDiversifiedAddress(
     const libzcash::SaplingPaymentAddress &addr,
     const libzcash::SaplingIncomingViewingKey &ivk,
     const blob88 &path)
 {
     AssertLockHeld(cs_wallet); // mapSaplingZKeyMetadata
 
-    if (!CCryptoKeyStore::AddSaplingDiversifiedAddess(addr, ivk, path)) {
+    if (IsCrypted() && IsLocked()) {
         return false;
     }
 
@@ -318,8 +320,25 @@ bool CWallet::AddSaplingDiversifiedAddess(
         return true;
     }
 
+    if (!CCryptoKeyStore::AddSaplingDiversifiedAddress(addr, ivk, path)) {
+        return false;
+    }
+
     if (!IsCrypted()) {
         return CWalletDB(strWalletFile).WriteSaplingDiversifiedAddress(addr, ivk, path);
+    }
+    else {
+
+        std::vector<unsigned char> vchCryptedSecret;
+        uint256 chash = HashWithFP(addr);
+        CKeyingMaterial vchSecret = SerializeForEncryptionInput(addr, ivk, path);
+
+        if (!EncryptSerializedWalletObjects(vchSecret, chash, vchCryptedSecret)) {
+            return false;
+        }
+
+        return CWalletDB(strWalletFile).WriteCryptedSaplingDiversifiedAddress(addr, chash, vchCryptedSecret);
+
     }
 
     return true;
@@ -536,16 +555,6 @@ bool CWallet::LoadCryptedZKey(const libzcash::SproutPaymentAddress &addr, const 
     return CCryptoKeyStore::AddCryptedSproutSpendingKey(addr, rk, vchCryptedSecret);
 }
 
-bool CWallet::LoadCryptedSaplingZKey(const uint256 &extfvkFinger, const std::vector<unsigned char> &vchCryptedSecret, libzcash::SaplingExtendedFullViewingKey &extfvk)
-{
-     return CCryptoKeyStore::LoadCryptedSaplingSpendingKey(extfvkFinger, vchCryptedSecret, extfvk);
-}
-
-bool CWallet::LoadCryptedSaplingExtendedFullViewingKey(const uint256 &extfvkFinger, const std::vector<unsigned char> &vchCryptedSecret, libzcash::SaplingExtendedFullViewingKey &extfvk)
-{
-     return CCryptoKeyStore::LoadCryptedSaplingExtendedFullViewingKey(extfvkFinger, vchCryptedSecret, extfvk);
-}
-
 bool CWallet::LoadSaplingZKeyMetadata(const libzcash::SaplingIncomingViewingKey &ivk, const CKeyMetadata &meta)
 {
     AssertLockHeld(cs_wallet); // mapSaplingZKeyMetadata
@@ -558,9 +567,52 @@ bool CWallet::LoadSaplingZKey(const libzcash::SaplingExtendedSpendingKey &key)
     return CCryptoKeyStore::AddSaplingSpendingKey(key);
 }
 
+bool CWallet::LoadCryptedSaplingZKey(const uint256 &chash, const std::vector<unsigned char> &vchCryptedSecret, libzcash::SaplingExtendedFullViewingKey &extfvk)
+{
+    AssertLockHeld(cs_wallet);
+    if (IsLocked()) {
+        return false;
+    }
+
+    CKeyingMaterial vchSecret;
+    if (!DecryptSerializedWalletObjects(vchCryptedSecret, chash, vchSecret)) {
+        return false;
+    }
+
+    libzcash::SaplingExtendedSpendingKey extsk;
+    DeserializeFromDecryptionOutput(vchSecret, extsk);
+    extfvk = extsk.ToXFVK();
+
+    if(extfvk.fvk.GetFingerprint() != chash) {
+        return false;
+    }
+
+     return CCryptoKeyStore::AddCryptedSaplingSpendingKey(extfvk, vchCryptedSecret);
+}
+
 bool CWallet::LoadSaplingFullViewingKey(const libzcash::SaplingExtendedFullViewingKey &extfvk)
 {
     return CCryptoKeyStore::AddSaplingExtendedFullViewingKey(extfvk);
+}
+
+bool CWallet::LoadCryptedSaplingExtendedFullViewingKey(const uint256 &chash, const std::vector<unsigned char> &vchCryptedSecret, libzcash::SaplingExtendedFullViewingKey &extfvk)
+{
+
+    if (IsLocked()) {
+        return false;
+    }
+
+    CKeyingMaterial vchSecret;
+    if (!DecryptSerializedWalletObjects(vchCryptedSecret, chash, vchSecret)) {
+        return false;
+    }
+
+    DeserializeFromDecryptionOutput(vchSecret, extfvk);
+    if(extfvk.fvk.GetFingerprint() != chash) {
+        return false;
+    }
+
+     return CCryptoKeyStore::AddSaplingExtendedFullViewingKey(extfvk);
 }
 
 bool CWallet::LoadSaplingPaymentAddress(
@@ -568,6 +620,80 @@ bool CWallet::LoadSaplingPaymentAddress(
     const libzcash::SaplingIncomingViewingKey &ivk)
 {
     return CCryptoKeyStore::AddSaplingIncomingViewingKey(ivk, addr);
+}
+
+bool CWallet::LoadCryptedSaplingPaymentAddress(const uint256 &chash, const std::vector<unsigned char> &vchCryptedSecret, libzcash::SaplingPaymentAddress& addr)
+{
+    if (IsLocked()) {
+        return false;
+    }
+
+    CKeyingMaterial vchSecret;
+    if (!DecryptSerializedWalletObjects(vchCryptedSecret, chash, vchSecret)) {
+        return false;
+    }
+
+    libzcash::SaplingIncomingViewingKey ivk;
+    DeserializeFromDecryptionOutput(vchSecret, addr, ivk);
+    if(HashWithFP(addr) != chash) {
+        return false;
+    }
+
+    return CCryptoKeyStore::AddSaplingIncomingViewingKey(ivk, addr);
+}
+
+bool CWallet::LoadSaplingDiversifiedAddress(
+    const libzcash::SaplingPaymentAddress &addr,
+    const libzcash::SaplingIncomingViewingKey &ivk,
+    const blob88 &path)
+{
+    return CCryptoKeyStore::AddSaplingDiversifiedAddress(addr, ivk, path);
+}
+
+bool CWallet::LoadCryptedSaplingDiversifiedAddress(const uint256 &chash, const std::vector<unsigned char> &vchCryptedSecret)
+{
+    if (IsLocked()) {
+        return false;
+    }
+
+    CKeyingMaterial vchSecret;
+    if (!DecryptSerializedWalletObjects(vchCryptedSecret, chash, vchSecret)) {
+        return false;
+    }
+
+    libzcash::SaplingPaymentAddress addr;
+    libzcash::SaplingIncomingViewingKey ivk;
+    blob88 path;
+    DeserializeFromDecryptionOutput(vchSecret, addr, ivk, path);
+    if(HashWithFP(addr) != chash) {
+        return false;
+    }
+
+    return CCryptoKeyStore::AddSaplingDiversifiedAddress(addr, ivk, path);
+}
+
+bool CWallet::LoadLastDiversifierUsed(
+    const libzcash::SaplingIncomingViewingKey &ivk,
+    const blob88 &path)
+{
+    return CCryptoKeyStore::AddLastDiversifierUsed(ivk, path);
+}
+
+bool CWallet::LoadLastCryptedDiversifierUsed(const uint256 &chash, const std::vector<unsigned char> &vchCryptedSecret)
+{
+    CKeyingMaterial vchSecret;
+    if (!DecryptSerializedWalletObjects(vchCryptedSecret, chash, vchSecret)) {
+        return false;
+    }
+
+    libzcash::SaplingIncomingViewingKey ivk;
+    blob88 path;
+    DeserializeFromDecryptionOutput(vchSecret, ivk, path);
+    if (HashWithFP(ivk) != chash) {
+        return false;
+    }
+
+    return LoadLastDiversifierUsed(ivk, path);
 }
 
 bool CWallet::LoadZKey(const libzcash::SproutSpendingKey &key)
@@ -794,6 +920,56 @@ bool CWallet::RemoveWatchOnly(const CScript &dest)
 bool CWallet::LoadWatchOnly(const CScript &dest)
 {
     return CCryptoKeyStore::AddWatchOnly(dest);
+}
+
+bool CWallet::LoadCryptedWatchOnly(const uint256 &chash, std::vector<unsigned char> &vchCryptedSecret)
+{
+    if (IsLocked()) {
+        return false;
+    }
+
+    CKeyingMaterial vchSecret;
+    if (!DecryptSerializedSecret(vchCryptedSecret, chash, vchSecret)) {
+        return false;
+    }
+
+    CScript dest;
+    CSecureDataStream ss(vchSecret, SER_NETWORK, PROTOCOL_VERSION);
+    ss >> *(CScriptBase*)(&dest);
+
+    return LoadWatchOnly(dest);
+}
+
+bool CWallet::LoadSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk)
+{
+    if (CCryptoKeyStore::AddSaplingWatchOnly(extfvk)) {
+        NotifyWatchonlyChanged(true);
+        return true;
+    }
+
+    return false;
+}
+
+bool CWallet::OpenWallet(const SecureString& strWalletPassphrase)
+{
+    CCrypter crypter;
+    CKeyingMaterial vMasterKey;
+
+    {
+        LOCK(cs_wallet);
+        BOOST_FOREACH(const MasterKeyMap::value_type& pMasterKey, mapMasterKeys)
+        {
+            if(!crypter.SetKeyFromPassphrase(strWalletPassphrase, pMasterKey.second.vchSalt, pMasterKey.second.nDeriveIterations, pMasterKey.second.nDerivationMethod))
+                return false;
+            if (!crypter.Decrypt(pMasterKey.second.vchCryptedKey, vMasterKey))
+                continue; // try another master key
+            if (CCryptoKeyStore::OpenWallet(vMasterKey)) {
+                strOpeningWalletPassphrase = new SecureString(strWalletPassphrase);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 bool CWallet::Unlock(const SecureString& strWalletPassphrase)
@@ -1606,6 +1782,99 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
     NotifyStatusChanged(this);
 
     return true;
+}
+
+bool CWallet::EncryptSerializedWalletObjects(
+    const CKeyingMaterial &vchSecret,
+    const uint256 chash,
+    std::vector<unsigned char> &vchCryptedSecret){
+
+    return CCryptoKeyStore::EncryptSerializedSecret(vchSecret, chash, vchCryptedSecret);
+}
+
+bool CWallet::EncryptSerializedWalletObjects(
+    CKeyingMaterial &vMasterKeyIn,
+    const CKeyingMaterial &vchSecret,
+    const uint256 chash,
+    std::vector<unsigned char> &vchCryptedSecret) {
+
+    return CCryptoKeyStore::EncryptSerializedSecret(vMasterKeyIn, vchSecret, chash, vchCryptedSecret);
+}
+
+bool CWallet::DecryptSerializedWalletObjects(
+     const std::vector<unsigned char>& vchCryptedSecret,
+     const uint256 chash,
+     CKeyingMaterial &vchSecret) {
+
+    return CCryptoKeyStore::DecryptSerializedSecret(vchCryptedSecret, chash, vchSecret);
+ }
+
+template<typename WalletObject>
+uint256 CWallet::HashWithFP(WalletObject &wObj) {
+
+    CDataStream s(SER_NETWORK, PROTOCOL_VERSION);
+    s << wObj;
+
+    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+    ss << seedEncyptionFP;
+
+    return Hash(s.begin(), s.end(), ss.begin(), ss.end());
+}
+
+template<typename WalletObject1>
+CKeyingMaterial CWallet::SerializeForEncryptionInput(WalletObject1 &wObj1) {
+
+    CSecureDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+    ss << wObj1;
+    CKeyingMaterial vchSecret(ss.begin(), ss.end());
+
+    return vchSecret;
+}
+
+template<typename WalletObject1, typename WalletObject2>
+CKeyingMaterial CWallet::SerializeForEncryptionInput(WalletObject1 &wObj1, WalletObject2 &wObj2) {
+
+    auto wObjs = std::make_pair(wObj1, wObj2);
+    CSecureDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+    ss << wObjs;
+    CKeyingMaterial vchSecret(ss.begin(), ss.end());
+
+    return vchSecret;
+}
+
+template<typename WalletObject1, typename WalletObject2, typename WalletObject3>
+CKeyingMaterial CWallet::SerializeForEncryptionInput(WalletObject1 &wObj1, WalletObject2 &wObj2, WalletObject3 &wObj3) {
+
+    auto wObjs = std::make_pair(std::make_pair(wObj1, wObj2), wObj3);
+    CSecureDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+    ss << wObjs;
+    CKeyingMaterial vchSecret(ss.begin(), ss.end());
+
+    return vchSecret;
+}
+
+template<typename WalletObject1>
+void CWallet::DeserializeFromDecryptionOutput(CKeyingMaterial &vchSecret, WalletObject1 &wObj1) {
+
+    CSecureDataStream ss(vchSecret, SER_NETWORK, PROTOCOL_VERSION);
+    ss >> wObj1;
+}
+
+template<typename WalletObject1, typename WalletObject2>
+void CWallet::DeserializeFromDecryptionOutput(CKeyingMaterial &vchSecret, WalletObject1 &wObj1, WalletObject2 &wObj2) {
+
+    CSecureDataStream ss(vchSecret, SER_NETWORK, PROTOCOL_VERSION);
+    ss >> wObj1;
+    ss >> wObj2;
+}
+
+template<typename WalletObject1, typename WalletObject2, typename WalletObject3>
+void CWallet::DeserializeFromDecryptionOutput(CKeyingMaterial &vchSecret, WalletObject1 &wObj1, WalletObject2 &wObj2, WalletObject3 &wObj3) {
+
+    CSecureDataStream ss(vchSecret, SER_NETWORK, PROTOCOL_VERSION);
+    ss >> wObj1;
+    ss >> wObj2;
+    ss >> wObj3;
 }
 
 int64_t CWallet::IncOrderPosNext(CWalletDB *pwalletdb)

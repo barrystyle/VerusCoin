@@ -231,6 +231,25 @@ public:
     //! write the hdchain model (external chain child index counter)
     bool WriteHDChain(const CHDChain& chain);
 
+    //Wrtie the address, ivk and path of diversified address to the wallet
+    bool WriteSaplingDiversifiedAddress(
+        const libzcash::SaplingPaymentAddress &addr,
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path);
+    bool WriteCryptedSaplingDiversifiedAddress(
+        const libzcash::SaplingPaymentAddress &addr,
+        const uint256 chash,
+        const std::vector<unsigned char> &vchCryptedSecret);
+
+    //Write the last used diversifier and ivk used
+    bool WriteLastDiversifierUsed(
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path);
+    bool WriteLastCryptedDiversifierUsed(
+        const uint256 chash,
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const std::vector<unsigned char> &vchCryptedSecret);
+
     /// Write spending key to wallet database, where key is payment address and value is spending key.
     bool WriteZKey(const libzcash::SproutPaymentAddress& addr, const libzcash::SproutSpendingKey& key, const CKeyMetadata &keyMeta);
     bool WriteSaplingZKey(const libzcash::SaplingIncomingViewingKey &ivk,
@@ -251,6 +270,8 @@ public:
 
     bool WriteSproutViewingKey(const libzcash::SproutViewingKey &vk);
     bool EraseSproutViewingKey(const libzcash::SproutViewingKey &vk);
+    bool WriteSaplingExtendedFullViewingKey(const libzcash::SaplingExtendedFullViewingKey &extfvk);
+    bool EraseSaplingExtendedFullViewingKey(const libzcash::SaplingExtendedFullViewingKey &extfvk);
 
 private:
     CWalletDB(const CWalletDB&);

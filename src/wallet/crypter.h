@@ -243,6 +243,22 @@ public:
             mi++;
         }
     }
+
+
+    bool EncryptSerializedSecret(
+        const CKeyingMaterial &vchSecret,
+        const uint256 chash,
+        std::vector<unsigned char> &vchCryptedSecret);
+    bool EncryptSerializedSecret(
+        CKeyingMaterial &vMasterKeyIn,
+        const CKeyingMaterial &vchSecret,
+        const uint256 chash,
+        std::vector<unsigned char> &vchCryptedSecret);
+    bool DecryptSerializedSecret(
+         const std::vector<unsigned char>& vchCryptedSecret,
+         const uint256 chash,
+         CKeyingMaterial &vchSecret);
+
     //! Sapling
     virtual bool AddCryptedSaplingSpendingKey(
         const libzcash::SaplingExtendedFullViewingKey &extfvk,

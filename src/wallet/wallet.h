@@ -871,6 +871,11 @@ public:
     int nextSweep = 0;
     int targetSweepQty = 0;
 
+    //Wallet Birthday;
+    int nBirthday;
+    bool bip39Enabled = false;
+    uint256 seedEncyptionFP;
+
     void ClearNoteWitnessCache();
 
 protected:
@@ -1059,6 +1064,7 @@ public:
     std::map<uint256, int> mapRequestCount;
 
     std::map<CTxDestination, CAddressBookData> mapAddressBook;
+    std::map<libzcash::PaymentAddress, CAddressBookData> mapZAddressBook;
 
     CPubKey vchDefaultKey;
 
@@ -1152,10 +1158,50 @@ public:
     bool RemoveWatchOnly(const CScript &dest);
     //! Adds a watch-only address to the store, without saving it to disk (used by LoadWallet)
     bool LoadWatchOnly(const CScript &dest);
+    bool LoadCryptedWatchOnly(const uint256 &chash, std::vector<unsigned char> &vchCryptedSecret);
 
+    bool LoadSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk);
+
+    bool OpenWallet(const SecureString& strWalletPassphrase);
     bool Unlock(const SecureString& strWalletPassphrase);
     bool ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase, const SecureString& strNewWalletPassphrase);
     bool EncryptWallet(const SecureString& strWalletPassphrase);
+
+    bool EncryptSerializedWalletObjects(
+        const CKeyingMaterial &vchSecret,
+        const uint256 chash,
+        std::vector<unsigned char> &vchCryptedSecret);
+    bool EncryptSerializedWalletObjects(
+        CKeyingMaterial &vMasterKeyIn,
+        const CKeyingMaterial &vchSecret,
+        const uint256 chash,
+        std::vector<unsigned char> &vchCryptedSecret);
+    bool DecryptSerializedWalletObjects(
+         const std::vector<unsigned char>& vchCryptedSecret,
+         const uint256 chash,
+         CKeyingMaterial &vchSecret);
+
+    //Templates for encrypting various wallet objects to be written to disk
+    template<typename WalletObject>
+    uint256 HashWithFP(WalletObject &wObj);
+
+    template<typename WalletObject1>
+    CKeyingMaterial SerializeForEncryptionInput(WalletObject1 &wObj1);
+
+    template<typename WalletObject1, typename WalletObject2>
+    CKeyingMaterial SerializeForEncryptionInput(WalletObject1 &wObj1, WalletObject2 &wObj2);
+
+    template<typename WalletObject1, typename WalletObject2, typename WalletObject3>
+    CKeyingMaterial SerializeForEncryptionInput(WalletObject1 &wObj1, WalletObject2 &wObj2, WalletObject3 &wObj3);
+
+    template<typename WalletObject1>
+    void DeserializeFromDecryptionOutput(CKeyingMaterial &vchSecret, WalletObject1 &wObj1);
+
+    template<typename WalletObject1, typename WalletObject2>
+    void DeserializeFromDecryptionOutput(CKeyingMaterial &vchSecret, WalletObject1 &wObj1, WalletObject2 &wObj2);
+
+    template<typename WalletObject1, typename WalletObject2, typename WalletObject3>
+    void DeserializeFromDecryptionOutput(CKeyingMaterial &vchSecret, WalletObject1 &wObj1, WalletObject2 &wObj2, WalletObject3 &wObj3);
 
     void GetKeyBirthTimes(std::map<CKeyID, int64_t> &mapKeyBirth) const;
 
@@ -1198,6 +1244,13 @@ public:
     bool AddSaplingIncomingViewingKey(
         const libzcash::SaplingIncomingViewingKey &ivk,
         const libzcash::SaplingPaymentAddress &addr);
+    bool AddSaplingDiversifiedAddress(
+        const libzcash::SaplingPaymentAddress &addr,
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path);
+    bool AddLastDiversifierUsed(
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path);
     bool AddCryptedSaplingSpendingKey(
         const libzcash::SaplingExtendedFullViewingKey &extfvk,
         const std::vector<unsigned char> &vchCryptedSecret);
@@ -1208,20 +1261,45 @@ public:
     bool LoadSaplingZKey(const libzcash::SaplingExtendedSpendingKey &key);
     //! Load spending key metadata (used by LoadWallet)
     bool LoadSaplingZKeyMetadata(const libzcash::SaplingIncomingViewingKey &ivk, const CKeyMetadata &meta);
+    //! Add Sapling full viewing key to the store, without saving it to disk (used by LoadWallet)
+    bool LoadSaplingFullViewingKey(
+        const libzcash::SaplingExtendedFullViewingKey &extfvk);
+    bool LoadCryptedSaplingExtendedFullViewingKey(
+        const uint256 &extfvkFinger,
+        const std::vector<unsigned char> &vchCryptedSecret,
+        libzcash::SaplingExtendedFullViewingKey &extfvk);
     //! Adds a Sapling payment address -> incoming viewing key map entry,
     //! without saving it to disk (used by LoadWallet)
     bool LoadSaplingPaymentAddress(
         const libzcash::SaplingPaymentAddress &addr,
         const libzcash::SaplingIncomingViewingKey &ivk);
+    bool LoadCryptedSaplingPaymentAddress(
+        const uint256 &chash,
+        const std::vector<unsigned char> &vchCryptedSecret,
+        libzcash::SaplingPaymentAddress& addr);
+
+    bool LoadSaplingDiversifiedAddress(
+        const libzcash::SaplingPaymentAddress &addr,
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path);
+    bool LoadCryptedSaplingDiversifiedAddress(
+        const uint256 &chash,
+        const std::vector<unsigned char> &vchCryptedSecret);
+
+    bool LoadLastDiversifierUsed(
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path);
+    bool LoadLastCryptedDiversifierUsed(
+        const uint256 &chash,
+        const std::vector<unsigned char> &vchCryptedSecret);
     //! Adds an encrypted spending key to the store, without saving it to disk (used by LoadWallet)
     bool LoadCryptedSaplingZKey(
-        const uint256 &extfvkFinger,
+        const uint256 &chash,
         const std::vector<unsigned char> &vchCryptedSecret,
         libzcash::SaplingExtendedFullViewingKey &extfvk);
-    bool LoadCryptedSaplingExtendedFullViewingKey(
-        const uint256 &extfvkFinger,
-        const std::vector<unsigned char> &vchCryptedSecret,
-        libzcash::SaplingExtendedFullViewingKey &extfvk);
+
+
+    bool LoadTempHeldCryptedData();
     /**
      * Increment the next transaction order id
      * @return next transaction order id

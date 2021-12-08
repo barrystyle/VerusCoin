@@ -53,8 +53,11 @@ public:
 
     //! Support for Watch-only addresses
     virtual bool AddWatchOnly(const CScript &dest) =0;
+    virtual bool AddSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk) =0;
     virtual bool RemoveWatchOnly(const CScript &dest) =0;
+    virtual bool RemoveSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk) =0;
     virtual bool HaveWatchOnly(const CScript &dest) const =0;
+    virtual bool HaveSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk) const =0;
     virtual bool HaveWatchOnly() const =0;
 
     //! Support for identities
@@ -103,6 +106,16 @@ public:
         libzcash::SaplingIncomingViewingKey& ivkOut) const =0;
     virtual void GetSaplingPaymentAddresses(std::set<libzcash::SaplingPaymentAddress> &setAddress) const =0;
 
+    //! Sapling diversified addfresses
+    virtual bool AddSaplingDiversifiedAddress(
+        const libzcash::SaplingPaymentAddress &addr,
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path) =0;
+
+    virtual bool AddLastDiversifierUsed(
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path) =0;
+
     //! Support for Sprout viewing keys
     virtual bool AddSproutViewingKey(const libzcash::SproutViewingKey &vk) =0;
     virtual bool RemoveSproutViewingKey(const libzcash::SproutViewingKey &vk) =0;
@@ -116,6 +129,7 @@ typedef std::map<CKeyID, CKey> KeyMap;
 typedef std::map<CScriptID, CScript> ScriptMap;
 typedef std::multimap<arith_uint256, CIdentityMapValue> IdentityMap;
 typedef std::set<CScript> WatchOnlySet;
+typedef std::set<libzcash::SaplingExtendedFullViewingKey> SaplingWatchOnlySet;
 typedef std::map<libzcash::SproutPaymentAddress, libzcash::SproutSpendingKey> SproutSpendingKeyMap;
 typedef std::map<libzcash::SproutPaymentAddress, libzcash::SproutViewingKey> SproutViewingKeyMap;
 typedef std::map<libzcash::SproutPaymentAddress, ZCNoteDecryption> NoteDecryptorMap;
@@ -126,6 +140,14 @@ typedef std::map<libzcash::SaplingExtendedFullViewingKey, libzcash::SaplingExten
 typedef std::map<libzcash::SaplingIncomingViewingKey, libzcash::SaplingExtendedFullViewingKey> SaplingFullViewingKeyMap;
 // Only maps from default addresses to ivk, may need to be reworked when adding diversified addresses.
 typedef std::map<libzcash::SaplingPaymentAddress, libzcash::SaplingIncomingViewingKey> SaplingIncomingViewingKeyMap;
+typedef std::set<libzcash::SaplingIncomingViewingKey> SaplingIncomingViewingKeySet;
+typedef std::set<uint256> SaplingOutgoingViewingKeySet;
+
+//diversified addresses
+typedef std::pair<libzcash::SaplingIncomingViewingKey, blob88> DiversifierPath;
+typedef std::map<libzcash::SaplingPaymentAddress, DiversifierPath> SaplingPaymentAddresses;
+
+typedef std::map<libzcash::SaplingIncomingViewingKey, blob88> LastDiversifierPath;
 
 /** Basic key store, that keeps keys in an address->secret map */
 class CBasicKeyStore : public CKeyStore
@@ -137,6 +159,7 @@ protected:
     IdentityMap mapIdentities;
 
     WatchOnlySet setWatchOnly;
+    SaplingWatchOnlySet setSaplingWatchOnly;
     SproutSpendingKeyMap mapSproutSpendingKeys;
     SproutViewingKeyMap mapSproutViewingKeys;
     NoteDecryptorMap mapNoteDecryptors;
@@ -144,6 +167,11 @@ protected:
     SaplingSpendingKeyMap mapSaplingSpendingKeys;
     SaplingFullViewingKeyMap mapSaplingFullViewingKeys;
     SaplingIncomingViewingKeyMap mapSaplingIncomingViewingKeys;
+    SaplingIncomingViewingKeyMap mapUnsavedSaplingIncomingViewingKeys;
+    SaplingIncomingViewingKeySet setSaplingIncomingViewingKeys;
+    SaplingOutgoingViewingKeySet setSaplingOutgoingViewingKeys;
+    SaplingPaymentAddresses mapSaplingPaymentAddresses;
+    LastDiversifierPath mapLastDiversifierPath;
 
 public:
     bool SetHDSeed(const HDSeed& seed);
@@ -211,8 +239,11 @@ public:
     virtual std::set<CKeyID> GetIdentityKeyIDs();
 
     virtual bool AddWatchOnly(const CScript &dest);
+    virtual bool AddSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk);
     virtual bool RemoveWatchOnly(const CScript &dest);
+    virtual bool RemoveSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk);
     virtual bool HaveWatchOnly(const CScript &dest) const;
+    virtual bool HaveSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk) const;
     virtual bool HaveWatchOnly() const;
 
     bool AddSproutSpendingKey(const libzcash::SproutSpendingKey &sk);
@@ -330,6 +361,16 @@ public:
             }
         }
     }
+
+    //! Sapling diversified addfresses
+    virtual bool AddSaplingDiversifiedAddress(
+        const libzcash::SaplingPaymentAddress &addr,
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path);
+
+    virtual bool AddLastDiversifierUsed(
+        const libzcash::SaplingIncomingViewingKey &ivk,
+        const blob88 &path);
 
     virtual bool AddSproutViewingKey(const libzcash::SproutViewingKey &vk);
     virtual bool RemoveSproutViewingKey(const libzcash::SproutViewingKey &vk);

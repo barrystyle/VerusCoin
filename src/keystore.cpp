@@ -430,11 +430,31 @@ bool CBasicKeyStore::AddWatchOnly(const CScript &dest)
     return true;
 }
 
+bool CBasicKeyStore::AddSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk)
+{
+    LOCK(cs_KeyStore);
+    setSaplingWatchOnly.insert(extfvk);
+    return true;
+}
+
 bool CBasicKeyStore::RemoveWatchOnly(const CScript &dest)
 {
     LOCK(cs_KeyStore);
     setWatchOnly.erase(dest);
     return true;
+}
+
+bool CBasicKeyStore::RemoveSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk)
+{
+    LOCK(cs_KeyStore);
+    setSaplingWatchOnly.erase(extfvk);
+    return true;
+}
+
+bool CBasicKeyStore::HaveSaplingWatchOnly(const libzcash::SaplingExtendedFullViewingKey &extfvk) const
+{
+    LOCK(cs_KeyStore);
+    return setSaplingWatchOnly.count(extfvk) > 0;
 }
 
 bool CBasicKeyStore::HaveWatchOnly(const CScript &dest) const
@@ -490,6 +510,7 @@ bool CBasicKeyStore::AddSaplingExtendedFullViewingKey(
     LOCK(cs_SpendingKeyStore);
     auto ivk = extfvk.fvk.in_viewing_key();
     mapSaplingFullViewingKeys[ivk] = extfvk;
+    setSaplingOutgoingViewingKeys.insert(extfvk.fvk.ovk);
 
     return CBasicKeyStore::AddSaplingIncomingViewingKey(ivk, extfvk.DefaultAddress());
 }
@@ -505,6 +526,35 @@ bool CBasicKeyStore::AddSaplingIncomingViewingKey(
 
     // Add addr -> SaplingIncomingViewing to SaplingIncomingViewingKeyMap
     mapSaplingIncomingViewingKeys[addr] = ivk;
+    setSaplingIncomingViewingKeys.insert(ivk);
+
+    //Cleared during SetBestChainINTERNAL to capture new address ivk pairs discovered while the wallet is locked
+    mapUnsavedSaplingIncomingViewingKeys[addr] = ivk;
+
+    return true;
+}
+
+bool CBasicKeyStore::AddSaplingDiversifiedAddress(
+    const libzcash::SaplingPaymentAddress &addr,
+    const libzcash::SaplingIncomingViewingKey &ivk,
+    const blob88 &path
+)
+{
+    LOCK(cs_SpendingKeyStore);
+    DiversifierPath dPath(ivk, path);
+
+    mapSaplingPaymentAddresses[addr] = dPath;
+
+    return true;
+}
+
+bool CBasicKeyStore::AddLastDiversifierUsed(
+    const libzcash::SaplingIncomingViewingKey &ivk,
+    const blob88 &path)
+{
+    LOCK(cs_SpendingKeyStore);
+
+    mapLastDiversifierPath[ivk] = path;
 
     return true;
 }
