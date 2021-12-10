@@ -11,6 +11,7 @@
 #include "net.h"
 
 #include "addrman.h"
+#include "i2p.h"
 #include "chainparams.h"
 #include "clientversion.h"
 #include "primitives/transaction.h"
@@ -1450,8 +1451,11 @@ void ThreadOpenConnections()
             break;
         }
 
-        if (addrConnect.IsValid())
+        if (addrConnect.IsValid()) {
+
             OpenNetworkConnection(addrConnect, &grant);
+
+        }
     }
 }
 

@@ -27,11 +27,15 @@ static const int DEFAULT_CONNECT_TIMEOUT = 5000;
 #undef SetPort
 #endif
 
+/// SAM 3.1 and earlier do not support specifying ports and force the port to 0.
+static constexpr uint16_t I2P_SAM31_PORT{0};
+
 enum Network
 {
     NET_UNROUTABLE = 0,
     NET_IPV4,
     NET_IPV6,
+    NET_I2P,
     NET_TOR,
 
     NET_MAX,
@@ -195,6 +199,8 @@ bool LookupHost(const char *pszName, std::vector<CNetAddr>& vIP, unsigned int nM
 bool Lookup(const char *pszName, CService& addr, int portDefault = 0, bool fAllowLookup = true);
 bool Lookup(const char *pszName, std::vector<CService>& vAddr, int portDefault = 0, bool fAllowLookup = true, unsigned int nMaxSolutions = 0);
 bool LookupNumeric(const char *pszName, CService& addr, int portDefault = 0);
+SOCKET CreateSocket(const CService &addrConnect);
+bool ConnectSocketDirectly(const CService &addrConnect, SOCKET& hSocketRet, int64_t nTimeout);
 bool ConnectSocket(const CService &addr, SOCKET& hSocketRet, int nTimeout, bool *outProxyConnectionFailed = 0);
 bool ConnectSocketByName(CService &addr, SOCKET& hSocketRet, const char *pszDest, int portDefault, int nTimeout, bool *outProxyConnectionFailed = 0);
 /** Return readable error string for a network error code */

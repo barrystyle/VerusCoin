@@ -284,5 +284,8 @@ template <typename Callable> void TraceThread(const char* name,  Callable func)
 
 #define KOMODO_ASSETCHAIN_MAXLEN 65
 
+std::pair<bool,std::string> ReadBinaryFile(const boost::filesystem::path &filename, size_t maxsize=std::numeric_limits<size_t>::max());
+bool WriteBinaryFile(const boost::filesystem::path &filename, const std::string &data);
+std::vector<std::string> Split(const std::string &sp, char sep);
 
 #endif // BITCOIN_UTIL_H

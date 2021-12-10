@@ -1187,3 +1187,68 @@ int GetNumCores()
     return boost::thread::physical_concurrency();
 }
 
+/** Read full contents of a file and return them in a std::string.
+ * Returns a pair <status, string>.
+ * If an error occurred, status will be false, otherwise status will be true and the data will be returned in string.
+ *
+ * @param maxsize Puts a maximum size limit on the file that is read. If the file is larger than this, truncated data
+ *         (with len > maxsize) will be returned.
+ */
+std::pair<bool,std::string> ReadBinaryFile(const boost::filesystem::path &filename, size_t maxsize)
+{
+    FILE *f = fopen(filename.string().c_str(), "rb");
+    if (f == nullptr)
+        return std::make_pair(false,"");
+    std::string retval;
+    char buffer[128];
+    size_t n;
+    while ((n=fread(buffer, 1, sizeof(buffer), f)) > 0) {
+        // Check for reading errors so we don't return any data if we couldn't
+        // read the entire file (or up to maxsize)
+        if (ferror(f)) {
+            fclose(f);
+            return std::make_pair(false,"");
+        }
+        retval.append(buffer, buffer+n);
+        if (retval.size() > maxsize)
+            break;
+    }
+    fclose(f);
+    return std::make_pair(true,retval);
+}
+
+/** Write contents of std::string to a file.
+ * @return true on success.
+ */
+bool WriteBinaryFile(const boost::filesystem::path &filename, const std::string &data)
+{
+    FILE *f = fopen(filename.string().c_str(), "wb");
+    if (f == nullptr)
+        return false;
+    if (fwrite(data.data(), 1, data.size(), f) != data.size()) {
+        fclose(f);
+        return false;
+    }
+    fclose(f);
+    return true;
+}
+
+std::vector<std::string> Split(const std::string &sp, char sep) 
+{
+    size_t start = 0, end = 0;
+    std::vector<std::string> ret;
+
+    while ((end = sp.find(sep, start)) != std::string::npos) {
+        if (sp.substr(start, end - start).length() > 0) {
+            ret.push_back(sp.substr(start, end - start));
+        }
+        start = end + 1;
+    }
+
+    if (sp.substr(start).length() > 0) {
+        ret.push_back(sp.substr(start));
+    }
+
+    return ret;
+}
+
